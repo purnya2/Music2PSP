@@ -8,10 +8,12 @@ on:
 permissions:
   contents: write
 
+env:
+  CARGO_TERM_COLOR: always
 
 jobs:
   build-and-upload:
-    name: Build on Windows
+    name: Build
     runs-on: ${{ matrix.os }}
 
     strategy:
@@ -41,6 +43,9 @@ jobs:
         with:
           # Make Rust compile to our target (defined in the matrix)
           targets: ${{ matrix.target }}
+
+      - name: Add macOS target
+        run: rustup target add ${{ matrix.target }}
 
       - name: Get the release version from the tag
         shell: bash
