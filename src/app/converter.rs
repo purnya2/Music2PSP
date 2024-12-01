@@ -1,4 +1,4 @@
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use mp3lame_encoder::*;
 use symphonia::core::codecs::{DecoderOptions, CODEC_TYPE_NULL};
 use symphonia::core::errors::Error;
@@ -11,10 +11,9 @@ use std::{fmt, fs, thread};
 use std::fmt::Formatter;
 use std::fs::File;
 use std::io::{Cursor, Write};
-use std::thread::Thread;
 use glob::glob;
 use image::imageops::FilterType;
-use image::{GenericImageView, ImageFormat, ImageReader};
+use image::{ ImageFormat, ImageReader};
 use symphonia::core::audio::{AudioBufferRef, Signal};
 
 // TODO a hashset thingy maybe that will store the images
@@ -75,9 +74,7 @@ impl AudioConverter {
         }
     }
 
-    fn new_from_path(from_type : AudioFiletype, to_type : AudioFiletype) -> Self {
-        unimplemented!()
-    }
+
 
     fn extract_metadata(&self, input_path : PathBuf) -> Result<TrackMetadata,Error>{
         let mut hint = Hint::new();
@@ -87,7 +84,7 @@ impl AudioConverter {
                 hint.with_extension(extension_str);
             }
         }
-        let src = std::fs::File::open(input_path).expect("failed to open .flac file");
+        let src = File::open(input_path).expect("failed to open .flac file");
 
         let mss_src = MediaSourceStream::new(Box::new(src), Default::default());
 
@@ -151,7 +148,7 @@ impl AudioConverter {
                 .expect("Apparently Cursor io never fails?");
 
             let image = reader.decode().unwrap();
-            if(image.width() > 500 || image.height()>500){
+            if image.width() > 500 || image.height()>500 {
                 let new_image = image.resize(500,500,FilterType::Gaussian);
 
                 let mut buffer = Cursor::new(Vec::new());
@@ -189,7 +186,7 @@ impl AudioConverter {
                     let image = ImageReader::open(path).unwrap().decode().unwrap();
                     let mut buffer = Cursor::new(Vec::new());
 
-                    if(image.width() > 500 || image.height()>500){
+                    if image.width() > 500 || image.height()>500 {
                         let new_image = image.resize(500,500,FilterType::Gaussian);
 
                         new_image.write_to(&mut buffer, ImageFormat::Jpeg).unwrap();
@@ -252,7 +249,7 @@ impl AudioConverter {
             AudioFiletype::MP3 => hint.with_extension("mp3"),
         };
 
-        let src = std::fs::File::open(self.src_path.clone()).expect("failed to open .flac file");
+        let src = File::open(self.src_path.clone()).expect("failed to open .flac file");
 
         let mss_src = MediaSourceStream::new(Box::new(src), Default::default());
 
@@ -371,8 +368,8 @@ impl AudioConverter {
         let mut mp3_encoder = Builder::new().expect("Create LAME builder");
         mp3_encoder.set_num_channels(2).expect("set channels");
         mp3_encoder.set_sample_rate(44_100).expect("set sample rate");
-        mp3_encoder.set_brate(mp3lame_encoder::Bitrate::Kbps192).expect("set brate");
-        mp3_encoder.set_quality(mp3lame_encoder::Quality::Best).expect("set quality");
+        mp3_encoder.set_brate(Bitrate::Kbps192).expect("set brate");
+        mp3_encoder.set_quality(Quality::Best).expect("set quality");
 
 
         let byte_slice: Vec<u8> = track_metadata.artist.concat().into_bytes();
@@ -395,7 +392,7 @@ impl AudioConverter {
         };
 
         let mut mp3_out_buffer = Vec::new();
-        mp3_out_buffer.reserve(mp3lame_encoder::max_required_buffer_size(input.left.len()));
+        mp3_out_buffer.reserve(max_required_buffer_size(input.left.len()));
         let encoded_size = mp3_encoder.encode(input, mp3_out_buffer.spare_capacity_mut()).expect("To encode");
         unsafe {
             mp3_out_buffer.set_len(mp3_out_buffer.len().wrapping_add(encoded_size));
@@ -442,8 +439,8 @@ fn append_to_path(p: PathBuf, s: &str) -> PathBuf {
 #[cfg(test)]
 mod tests {
     use std::io::Cursor;
-    use image::{ImageBuffer, ImageReader};
-    use crate::app::converter::AudioFiletype::{FLAC, MP3};
+    use image::ImageReader;
+    use crate::app::converter::AudioFiletype::MP3;
     use super::*;
 
 

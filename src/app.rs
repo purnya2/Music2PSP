@@ -8,8 +8,6 @@ use rfd::FileDialog;
 use std::sync::Arc;
 use eframe::{egui_glow, glow};
 
-use image::{ ImageReader, RgbaImage};
-
 use egui::{FontData, FontDefinitions, FontFamily, Frame};
 
 use std::default::Default;
@@ -112,7 +110,7 @@ impl eframe::App for TemplateApp {
             .frame(Frame::none().inner_margin(egui::Margin::same(30.0)))
             .show(ctx, |ui| {
 
-            ui.heading(format!("Music2PSP Converter"));
+            ui.heading("Music2PSP Converter");
 
 
             if ui.button("Add Folder").clicked() {
@@ -197,7 +195,7 @@ impl eframe::App for TemplateApp {
         ctx.layer_painter(egui::LayerId::background())
             .add(egui::PaintCallback {
                 rect: screen_rect,
-                callback: std::sync::Arc::new(egui_glow::CallbackFn::new(move |_info, painter| {
+                callback: Arc::new(egui_glow::CallbackFn::new(move |_info, painter| {
                     xmbwaveshader.lock().paint_static(painter.gl(), start_time);
                 })),
             });
@@ -210,9 +208,9 @@ fn convert_files_in_folder(dir: &PathBuf, destination: PathBuf) {
 
     let search_path = dir.to_string_lossy().to_string() + "/*.flac";
     for file in glob(&search_path).expect("failz on da glob pattern"){
-        let dest = destination.clone(); // TODO how many fucking clones?
+        let dest = destination.clone(); // TODO how many  clones?
 
-        let handle = thread::spawn( move ||{
+        let _handle = thread::spawn( move ||{
             let input_path = file.unwrap();
             let binding = input_path.clone();
             let filename = binding.file_name().unwrap();
@@ -339,7 +337,7 @@ impl XmbWaveShader {
                 (glow::FRAGMENT_SHADER, fragment_shader_source),
             ];
 
-            let compiled_shaders: Vec<_> = shaders
+            let _compiled_shaders: Vec<_> = shaders
                 .iter()
                 .map(|(shader_type, shader_source)| {
                     let shader = gl.create_shader(*shader_type).unwrap();
@@ -373,7 +371,7 @@ impl XmbWaveShader {
 
             gl.use_program(Some(program));
             if let Some(i_time_location) = gl.get_uniform_location(program, "iTime") {
-                gl.uniform_1_f32(Some(&i_time_location), 0 as f32);
+                gl.uniform_1_f32(Some(&i_time_location), 0f32);
             }
             gl.bind_vertex_array(Some(vertex_array));
             gl.draw_arrays(glow::TRIANGLE_FAN, 0, 4);
