@@ -22,7 +22,7 @@ fn main() -> eframe::Result {
     eframe::run_native(
         "M2PSP",
         native_options,
-        Box::new(|cc| Ok(Box::new(eframe_template::TemplateApp::new(cc)))),
+        Box::new(|cc| Ok(Box::new(m2psp::TemplateApp::new(cc)))),
     )
 }
 
