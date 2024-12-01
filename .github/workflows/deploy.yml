@@ -19,17 +19,17 @@ jobs:
     strategy:
       matrix:
         include:
-          #- build: linux
-          #  os: ubuntu-latest
-          #  target: x86_64-unknown-linux-musl
+          - build: linux
+            os: ubuntu-latest
+            target: x86_64-unknown-linux-musl
 
           - build: macos
             os: macos-latest
-            target: x86_64-apple-darwin
+            target: aarch64-apple-darwin
 
-          #- build: windows-gnu
-          #  os: windows-latest
-          #  target: x86_64-pc-windows-gnu
+          - build: windows-gnu
+            os: windows-latest
+            target: x86_64-pc-windows-gnu
 
 
     steps:
@@ -44,7 +44,7 @@ jobs:
           # Make Rust compile to our target (defined in the matrix)
           targets: ${{ matrix.target }}
 
-      - name: Add macOS target
+      - name: Add target for good measure
         run: rustup target add ${{ matrix.target }}
 
       - name: Get the release version from the tag
