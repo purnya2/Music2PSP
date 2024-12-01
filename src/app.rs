@@ -15,18 +15,14 @@ use glob::glob;
 use crate::app::converter::{AudioConverter, AudioFiletype};
 use std::thread;
 use eframe::epaint::mutex::Mutex;
-use eframe::glow::HasContext;
 
 mod converter;
 
 
 pub struct TemplateApp {
     // Example stuff:
-    label: String,
-    folder_directory: PathBuf,
     folder_directories: HashSet<PathBuf>,
     destination_directory: Option<PathBuf>,
-    value: f32,
     start_time: Instant,
     xmbwaveshader: Arc<Mutex<XmbWaveShader>>,
 }
@@ -59,11 +55,8 @@ impl TemplateApp {
             .expect("You need to run eframe with the glow backend");
 
         Self {
-            label: "Hello World!".to_owned(),
-            folder_directory : PathBuf::new(),
             destination_directory: None,
             folder_directories : HashSet::new(),
-            value: 2.7,
             start_time: Instant::now(),
             xmbwaveshader: Arc::new(Mutex::new(XmbWaveShader::new(gl)))
         }
@@ -132,7 +125,7 @@ impl eframe::App for TemplateApp {
             ui.horizontal(|ui| {
                 ui.label("dest dir:");
                 let dst_ops = self.destination_directory.clone();
-                let mut dst_str = "".to_string();
+                let mut dst_str ;
                 match dst_ops {
                     Some(dir) => {
                         dst_str = dir.to_string_lossy().to_string()
@@ -178,6 +171,12 @@ impl eframe::App for TemplateApp {
         });
     }
 
+
+    fn on_exit(&mut self, gl: Option<&glow::Context>) {
+        if let Some(gl) = gl {
+            self.xmbwaveshader.lock().destroy(gl);
+        }
+    }
 }
 
 

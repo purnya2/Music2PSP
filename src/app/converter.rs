@@ -76,7 +76,7 @@ impl AudioConverter {
 
 
 
-    fn extract_metadata(&self, input_path : PathBuf) -> Result<TrackMetadata,Error>{
+    fn __extract_metadata(&self, input_path : PathBuf) -> Result<TrackMetadata,Error>{
         let mut hint = Hint::new();
 
         if let Some(extension) = input_path.extension() {
@@ -143,7 +143,7 @@ impl AudioConverter {
             // cerchiamo di capire se la immagine è troppo grande o no, se no, allora track_metadata.album_art ottiene lo stesso, altrimenti, track_metadata.album_art ha una immagine
             // nuova
             // TODO skippa questa sezione se abbiamo già salvato in cache la immagine già processata
-            let mut reader = ImageReader::new(Cursor::new(album_art_raw.clone()))
+            let reader = ImageReader::new(Cursor::new(album_art_raw.clone()))
                 .with_guessed_format()
                 .expect("Apparently Cursor io never fails?");
 
@@ -213,7 +213,13 @@ impl AudioConverter {
     pub fn convert_file_to_mp3(&self, output_path: PathBuf) -> Result<(),Error>{
 
         let (pcm_data_left_vec,pcm_data_right_vec,track_metadata) = self.decode_input().unwrap();
-        let mp3_bytes = self.encode_to_mp3(pcm_data_left_vec,pcm_data_right_vec, &track_metadata);
+
+        // TODO maybe allow to export in more formats
+        let mp3_bytes;
+        match &self.to_type {
+            AudioFiletype::MP3 =>  mp3_bytes = self.encode_to_mp3(pcm_data_left_vec,pcm_data_right_vec, &track_metadata),
+            _ => panic!("not implemented")
+        }
 
         if self.output_based_on_metadata {
 
@@ -407,9 +413,6 @@ impl AudioConverter {
 
     }
 
-    pub fn some_function(&self) ->Result<(),()>  {
-        Ok(())
-    }
 
     fn ignore_end_of_stream_error(&self, result: Result<(), Error>) -> Result<(),Error> {
         match result {
@@ -455,7 +458,7 @@ mod tests {
     fn test_metadata_extraction(){
         let audio_converter = AudioConverter::new(PathBuf::from("test_media/no_file.flac"), MP3);
 
-        let metadata = audio_converter.extract_metadata(PathBuf::from("test_media/no_file.flac"));
+        let metadata = audio_converter.__extract_metadata(PathBuf::from("test_media/no_file.flac"));
 
         match metadata {
             Ok(track_metadata) => {
