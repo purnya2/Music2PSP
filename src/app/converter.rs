@@ -29,6 +29,7 @@ pub struct AudioConverter {
     to_type : AudioFiletype,
     src_path : PathBuf,
     output_based_on_metadata : bool,
+
 }
 
 struct TrackMetadata{
@@ -39,6 +40,8 @@ struct TrackMetadata{
     album_art: Box<[u8]>,
     year: String,
     comment: String,
+    sample_rate:u32,
+
 }
 
 impl fmt::Debug for TrackMetadata{
@@ -71,7 +74,7 @@ impl AudioConverter {
             src_path,
             from_type,
             to_type,
-            output_based_on_metadata: true
+            output_based_on_metadata: true,
         }
     }
 
@@ -115,6 +118,8 @@ impl AudioConverter {
             album_art: Box::new([]),
             year: "".to_string(),
             comment: "".to_string(),
+            sample_rate : 44_100,
+
         };
 
         // estraggo i metadati
@@ -276,7 +281,7 @@ impl AudioConverter {
         let binding = format.metadata();
 
 
-        let track_metadata = self._extract_metadata(binding).unwrap();
+        let mut track_metadata = self._extract_metadata(binding).unwrap();
 
         ////////////////////////////////////////////////////
 
@@ -286,10 +291,18 @@ impl AudioConverter {
             .find(|t| t.codec_params.codec != CODEC_TYPE_NULL)
             .expect("no supported audio tracks");
 
+        let params = &track.codec_params;
+
         let dec_opts: DecoderOptions = Default::default();
 
+        if let Some(sample_rate) = params.sample_rate {
+            track_metadata.sample_rate = sample_rate
+        } else {
+            println!("Sample rate information is not available.");
+        }
+
         let mut decoder = symphonia::default::get_codecs()
-            .make(&track.codec_params, &dec_opts)
+            .make(params, &dec_opts)
             .expect("unsupported codec");
 
         let track_id = track.id;
@@ -378,7 +391,7 @@ impl AudioConverter {
     fn encode_to_mp3(&self, pcm_left : Vec<i32>,pcm_right : Vec<i32>, track_metadata: &TrackMetadata) -> Vec<u8>{
         let mut mp3_encoder = Builder::new().expect("Create LAME builder");
         mp3_encoder.set_num_channels(2).expect("set channels");
-        mp3_encoder.set_sample_rate(44_100).expect("set sample rate");
+        mp3_encoder.set_sample_rate(track_metadata.sample_rate).expect("set sample rate");
         mp3_encoder.set_brate(Bitrate::Kbps192).expect("set brate");
         mp3_encoder.set_quality(Quality::Best).expect("set quality");
 
