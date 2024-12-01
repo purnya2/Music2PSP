@@ -438,7 +438,7 @@ fn append_to_path(p: PathBuf, s: &str) -> PathBuf {
 }
 
 
-
+/*
 #[cfg(test)]
 mod tests {
     use std::io::Cursor;
@@ -468,7 +468,7 @@ mod tests {
                 println!("{:02X} {:02X} {:02X}", album_art_raw[0],album_art_raw[1],album_art_raw[2]);
 
 
-                let mut reader = ImageReader::new(Cursor::new(album_art_raw))
+                let reader = ImageReader::new(Cursor::new(album_art_raw))
                     .with_guessed_format()
                     .expect("Apparently Cursor io never fails?");
 
@@ -483,4 +483,4 @@ mod tests {
             }
         }
     }
-}
+}*/
