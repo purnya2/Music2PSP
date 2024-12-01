@@ -33,6 +33,7 @@ pub struct AudioConverter {
 
 struct TrackMetadata{
     title: String,
+    track_number : String,
     artist: Vec<String>,
     album: String,
     album_art: Box<[u8]>,
@@ -108,6 +109,7 @@ impl AudioConverter {
 
         let mut track_metadata : TrackMetadata = TrackMetadata {
             title: "".to_string(),
+            track_number : "".to_string(),
             artist: vec![],
             album: "".to_string(),
             album_art: Box::new([]),
@@ -115,11 +117,14 @@ impl AudioConverter {
             comment: "".to_string(),
         };
 
+        // estraggo i metadati
         for tag in metadata.tags().iter() {
             match tag.std_key {
                 Some(key) =>{
                     match key {
+
                         StandardTagKey::TrackTitle => track_metadata.title = tag.value.to_string(),
+                        StandardTagKey::TrackNumber => track_metadata.track_number = tag.value.to_string(),
                         StandardTagKey::Album => track_metadata.album = tag.value.to_string(),
                         StandardTagKey::Artist => track_metadata.artist = vec![tag.value.to_string()],
                         StandardTagKey::Date => track_metadata.year = (&tag.value.to_string()[..4]).to_string(),
@@ -134,7 +139,7 @@ impl AudioConverter {
 
         let mut album_art_raw: Box<[u8]> = Box::new([]);
 
-        // tiriamoci fuori il raw data
+        // tiriamoci fuori il raw album data
         for visual in metadata.visuals().iter(){
             album_art_raw = visual.data.clone();
         }
@@ -223,7 +228,7 @@ impl AudioConverter {
 
         if self.output_based_on_metadata {
 
-            let second_half_of_path : String = "/".to_string() + &track_metadata.album + "/" ;
+            let second_half_of_path : String = "/".to_string() +  &track_metadata.album + "/" ;
             let dir_path = append_to_path(output_path,&second_half_of_path);
 
             if !dir_path.exists(){
@@ -234,8 +239,8 @@ impl AudioConverter {
                 }
             }
 
-            let filename = track_metadata.title.clone() + ".mp3";
-            let sanitized_filename = filename.replace(":", "_");  // Replace colon with underscore or another valid character
+            let filename = format_track_number(&track_metadata.track_number) + " - " + &track_metadata.title + ".mp3";
+            let sanitized_filename = filename.replace(":", "_").replace("/", "_");
 
             let full_path = append_to_path(dir_path, &sanitized_filename);
             let mut file = File::create(full_path).unwrap();
@@ -429,6 +434,16 @@ impl AudioConverter {
     }
 
 
+}
+
+fn format_track_number(str : &str) -> String{
+    if str.len()>1{
+        str.to_string()
+
+    } else {
+        "0".to_string() + str
+
+    }
 }
 
 fn append_to_path(p: PathBuf, s: &str) -> PathBuf {
