@@ -47,6 +47,11 @@ jobs:
       - name: Add target for good measure
         run: rustup target add ${{ matrix.target }}
 
+      - name: Install cross (for cross-compilation)
+        run: |
+          cargo install cross
+        
+
       - name: Get the release version from the tag
         shell: bash
         run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
