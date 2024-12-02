@@ -27,3 +27,7 @@ cargo run --release
 
 This will build and run the project in release mode.
 
+## Credits
+
+The background shader was adapted from [ParkingLotGames' Classic PSP Wave shader](https://www.shadertoy.com/view/ddV3DK).
+
