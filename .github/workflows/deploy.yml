@@ -18,15 +18,15 @@ jobs:
     strategy:
       matrix:
         include:
-          - build: linux
-            os: ubuntu-latest
-            target: x86_64-unknown-linux-musl
-            run_os : ubuntu-latest
+          #- build: linux
+          #  os: ubuntu-latest
+          #  target: x86_64-unknown-linux-musl
+          #  run_os : ubuntu-latest
 
-          - build: macos
-            os: macos-latest
-            target: aarch64-apple-darwin
-            run_os : macos-latest
+          #- build: macos
+          #  os: macos-latest
+          #  target: aarch64-apple-darwin
+          #  run_os : macos-latest
 
           - build: windows-gnu
             os: windows-latest
