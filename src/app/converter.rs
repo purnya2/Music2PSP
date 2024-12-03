@@ -11,6 +11,7 @@ use std::{fmt, fs, thread};
 use std::fmt::Formatter;
 use std::fs::File;
 use std::io::{Cursor, Write};
+use egui::ahash::HashMap;
 use glob::glob;
 use image::imageops::FilterType;
 use image::{ ImageFormat, ImageReader};
@@ -18,7 +19,17 @@ use symphonia::core::audio::{AudioBufferRef, Signal};
 
 // TODO a hashset thingy maybe that will store the images
 // so that I don't have to regenerate the images continuously
+#[derive(serde::Deserialize, serde::Serialize, Debug)]
 
+struct AlbumArtCache {
+    album_art : HashMap<u64,Vec<u8>>
+}
+
+impl Default for AlbumArtCache{
+    fn default() -> Self {
+        todo!()
+    }
+}
 
 pub enum AudioFiletype {
     MP3,
@@ -58,6 +69,8 @@ impl fmt::Debug for TrackMetadata{
 }
 
 impl AudioConverter {
+
+
     pub(crate) fn new(src_path : PathBuf, to_type : AudioFiletype) -> Self {
 
         let from_type = src_path
@@ -150,8 +163,8 @@ impl AudioConverter {
         }
 
         if album_art_raw.len() != 0{ // se la immagine è presente allora esegui il seguente blocco di codice
-            // cerchiamo di capire se la immagine è troppo grande o no, se no, allora track_metadata.album_art ottiene lo stesso, altrimenti, track_metadata.album_art ha una immagine
-            // nuova
+            // cerchiamo di capire se la immagine è troppo grande o no, se no,
+            // allora track_metadata.album_art ottiene lo stesso, altrimenti, track_metadata.album_art ha una immagine nuova
             // TODO skippa questa sezione se abbiamo già salvato in cache la immagine già processata
             let reader = ImageReader::new(Cursor::new(album_art_raw.clone()))
                 .with_guessed_format()
@@ -466,49 +479,20 @@ fn append_to_path(p: PathBuf, s: &str) -> PathBuf {
 }
 
 
-/*
+
 #[cfg(test)]
 mod tests {
-    use std::io::Cursor;
-    use image::ImageReader;
-    use crate::app::converter::AudioFiletype::MP3;
-    use super::*;
-
-
-    #[test]
-    fn test_decode_flac() {
-        let something = AudioConverter::new(PathBuf::from("test_media/image_testing/no_file.flac"),MP3);
-        assert!(something.convert_file_to_mp3(PathBuf::from("test_media/")).is_ok());
-    }
 
     #[test]
 
-    fn test_metadata_extraction(){
-        let audio_converter = AudioConverter::new(PathBuf::from("test_media/no_file.flac"), MP3);
+    fn test_hashing(){
+        use std::hash::{DefaultHasher, Hasher};
 
-        let metadata = audio_converter.__extract_metadata(PathBuf::from("test_media/no_file.flac"));
+        let mut hasher = DefaultHasher::new();
+        let data = [0x01, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd, 0xef];
 
-        match metadata {
-            Ok(track_metadata) => {
-                println!("{:?}",track_metadata);
+        hasher.write(&data);
 
-                let album_art_raw = track_metadata.album_art;
-                println!("{:02X} {:02X} {:02X}", album_art_raw[0],album_art_raw[1],album_art_raw[2]);
-
-
-                let reader = ImageReader::new(Cursor::new(album_art_raw))
-                    .with_guessed_format()
-                    .expect("Apparently Cursor io never fails?");
-
-                let image = reader.decode().unwrap();
-
-                println!("{:?}, {:?}", image.width(),image.height());
-                assert!(true)
-            }
-            Err(err) => {
-                eprintln!("{}",err);
-                assert!(false)
-            }
-        }
+        println!("Hash is {:x}!", hasher.finish());
     }
-}*/
+}

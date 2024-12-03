@@ -31,7 +31,7 @@ jobs:
           - build: windows-gnu
             os: windows-latest
             target: x86_64-pc-windows-gnu
-            run_os : ubuntu-latest
+            run_os : windows-latest
 
     steps:
       - name: Clone repository
@@ -59,7 +59,7 @@ jobs:
         with:
           use-cross: true
           command: build
-          args: --verbose --release --target ${{ matrix.target }}
+          args: --verbose --release --target=${{ matrix.target }}
 
       - name: Build archive
         shell: bash
