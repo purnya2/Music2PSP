@@ -1,4 +1,4 @@
-name: Deploy
+name: Deploy-for-windows
 
 on:
   push:
@@ -14,20 +14,13 @@ env:
 jobs:
   build-and-upload:
     name: Build
-    runs-on: ${{ matrix.run_os }}
+    runs-on: windows-latest
     strategy:
       matrix:
         include:
-          - build: linux
-            os: ubuntu-latest
-            target: x86_64-unknown-linux-musl
-            run_os : ubuntu-latest
-
-          - build: macos
-            os: macos-latest
-            target: aarch64-apple-darwin
-            run_os : macos-latest
-
+          - build: windows-gnu
+            os: windows-latest
+            target: x86_64-pc-windows-gnu
 
     steps:
       - name: Clone repository
@@ -39,7 +32,7 @@ jobs:
         # Arguments to pass in
         with:
           # Make Rust compile to our target (defined in the matrix)
-          targets: ${{ matrix.target }}
+          targets: x86_64-pc-windows-gnu
 
       - name: Install cross (for cross-compilation)
         run: |
@@ -55,7 +48,7 @@ jobs:
         with:
           use-cross: true
           command: build
-          args: --verbose --release --target=${{ matrix.target }}
+          args: --verbose --release
 
       - name: Build archive
         shell: bash
@@ -63,13 +56,14 @@ jobs:
           # Replace with the name of your binary
           binary_name="m2psp"
 
-          dirname="$binary_name-${{ env.VERSION }}-${{ matrix.target }}"
+          dirname="$binary_name-${{ env.VERSION }}"
           mkdir "$dirname"
 
-          mv "target/${{ matrix.target }}/release/$binary_name" "$dirname"
-          
-          tar -czf "$dirname.tar.gz" "$dirname"
-          echo "ASSET=$dirname.tar.gz" >> $GITHUB_ENV
+          mv "target/release/$binary_name.exe" "$dirname"
+
+          7z a "$dirname.zip" "$dirname"
+          echo "ASSET=$dirname.zip" >> $GITHUB_ENV
+
 
       - name: Upload the binaries
         uses: softprops/action-gh-release@v1
