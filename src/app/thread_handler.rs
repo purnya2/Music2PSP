@@ -1,7 +1,7 @@
 use crate::app::converter::{AudioConverter, AudioFiletype};
 use rayon::prelude::*;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::thread;
 
@@ -11,7 +11,7 @@ pub struct ThreadHandler {
 
     file_buffer: Vec<PathBuf>,
     pub destination: PathBuf,
-    busy: bool,
+    pub is_busy: Arc<AtomicBool>,
 }
 
 impl ThreadHandler {
@@ -21,7 +21,7 @@ impl ThreadHandler {
             num_finished: Arc::new(AtomicUsize::new(0)),
             file_buffer: Vec::new(),
             destination: PathBuf::new(),
-            busy: false,
+            is_busy: Arc::new(AtomicBool::new(false)),
         }
     }
 
@@ -41,16 +41,23 @@ impl ThreadHandler {
     pub fn execute_threads(&self) {
         let num_processing = Arc::clone(&self.num_processing);
         let num_finished = Arc::clone(&self.num_finished);
+        let is_busy = Arc::clone(&self.is_busy);
+
         let file_buffer = self.file_buffer.clone();
         let destination = self.destination.clone();
 
-        thread::spawn(move || {
+        let handle = thread::spawn(move || {
+            is_busy.store(true, Ordering::Relaxed);
             file_buffer.par_iter().for_each(|input| {
                 num_processing.fetch_add(1, Ordering::SeqCst);
                 ThreadHandler::process(input.clone(), destination.clone());
                 num_finished.fetch_add(1, Ordering::SeqCst);
-            })
+            });
+            is_busy.store(false, Ordering::Relaxed);
+
+
         });
+
     }
 
     pub fn add_files(&mut self, files: Vec<PathBuf>) {

@@ -30,6 +30,8 @@ pub struct TemplateApp {
     start_time: Instant,
     xmbwaveshader: Arc<Mutex<XmbWaveShader>>,
     thread_handler: ThreadHandler,
+    t : f32,
+    acc : f32
 }
 
 impl TemplateApp {
@@ -60,19 +62,20 @@ impl TemplateApp {
             start_time: Instant::now(),
             xmbwaveshader: Arc::new(Mutex::new(XmbWaveShader::new(gl))),
             thread_handler: ThreadHandler::new(),
+            t : 0.0,
+            acc : 0.5
         }
     }
 }
 
 impl eframe::App for TemplateApp {
-    /*/// Called by the framework to save state before shutdown.
-    fn save(&mut self, storage: &mut dyn eframe::Storage) {
-        eframe::set_value(storage, eframe::APP_KEY, self);
-    }*/
-
     /// Called each time the UI needs repainting, which may be many times per second.
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        self.paint_on_window_background(ctx);
+
+
+        let is_busy = self.thread_handler.is_busy.load(Ordering::Relaxed);
+
+        self.paint_on_window_background(ctx,is_busy);
 
         ctx.request_repaint();
 
@@ -102,7 +105,8 @@ impl eframe::App for TemplateApp {
                 if ui.button("Select Destination Folder").clicked() {
                     if let Some(file_path) = FileDialog::new().pick_folder() {
                         self.destination_directory = Some(file_path);
-                        self.thread_handler.destination = self.destination_directory.clone().unwrap();
+                        self.thread_handler.destination =
+                            self.destination_directory.clone().unwrap();
                     } else {
                         self.destination_directory = None;
                     }
@@ -124,11 +128,11 @@ impl eframe::App for TemplateApp {
                         Some(dir) => {
                             for folder in &self.folder_directories {
                                 self.thread_handler
-                                    .add_files(convert_files_in_folder(folder));
+                                    .add_files(collect_files_in_folder(folder));
                             }
                             self.thread_handler.execute_threads();
                         }
-                        None => println!("No destination here man!"),
+                        None => println!("You forgot to put the destination man!"),
                     }
                 }
 
@@ -157,12 +161,25 @@ impl eframe::App for TemplateApp {
         }
     }
 }
-
+fn lerp(a: f32, b: f32, t: f32) -> f32 {
+    a + (b - a) * t
+}
 impl TemplateApp {
-    fn paint_on_window_background(&mut self, ctx: &egui::Context) {
+    fn paint_on_window_background(&mut self, ctx: &egui::Context, is_busy: bool) {
         let screen_rect = ctx.screen_rect();
+        let mut start_time:f32 = 0.0;
+        if is_busy{
+            self.acc = lerp(self.acc,0.25,0.005);
+            self.t += self.acc;
+            start_time = self.t;
+        }
+        else{
+            self.acc = lerp(self.acc,0.01,0.01);
+            self.t += self.acc;
+            start_time = self.t;
+        }
 
-        let start_time = self.start_time.clone();
+
         let xmbwaveshader = self.xmbwaveshader.clone();
 
         ctx.layer_painter(egui::LayerId::background())
@@ -175,10 +192,10 @@ impl TemplateApp {
     }
 }
 
-fn convert_files_in_folder(dir: &PathBuf) -> Vec<PathBuf> {
-    let valid_extensions = ["flac", "ogg", "mp3"];
+// Collects all the files that have an acceptable extension
+fn collect_files_in_folder(dir: &PathBuf) -> Vec<PathBuf> {
+    let valid_extensions = ["flac", "ogg", "mp3", "aac"];
 
-    // Collects all the files that have an acceptable extension
     let files: Vec<PathBuf> = std::fs::read_dir(dir)
         .unwrap()
         .filter(|entry_res| match entry_res {
@@ -195,30 +212,6 @@ fn convert_files_in_folder(dir: &PathBuf) -> Vec<PathBuf> {
 
     files
 }
-/*
-
-let search_path = dir.to_string_lossy().to_string() + "/*.flac";
-
-for file in glob(&search_path).expect("failz on da glob pattern"){
-    let dest = destination.clone(); // TODO how many  clones?
-
-    let _handle = thread::spawn( move ||{
-        let input_path = file.unwrap();
-        let binding = input_path.clone();
-        let filename = binding.file_name().unwrap();
-        println!("Currently converting : {:?}", filename);
-
-        let audio_converter = AudioConverter::new(input_path, AudioFiletype::MP3);
-        let res = audio_converter.convert_file_to_mp3( dest.clone());
-
-        match res{
-            Ok(()) => println!("Converted! : {:?}", filename),
-            Err(e) => eprintln!("Error for file {:?}... : {}",filename, e),
-        }
-    });
-}
-*/
- */
 
 fn table_ui(ui: &mut egui::Ui, data: &mut HashSet<PathBuf>) {
     use egui_extras::{Column, TableBuilder};
@@ -369,13 +362,13 @@ impl XmbWaveShader {
             }
         }
     }
-    fn paint_static(&self, gl: &glow::Context, time_start: Instant) {
+    fn paint_static(&self, gl: &glow::Context, time_start: f32) {
         use glow::HasContext as _;
         unsafe {
             gl.use_program(Some(self.program));
             gl.uniform_1_f32(
                 gl.get_uniform_location(self.program, "iTime").as_ref(),
-                time_start.elapsed().as_secs_f32(),
+                time_start,
             );
             gl.bind_vertex_array(Some(self.vertex_array));
             gl.draw_arrays(glow::TRIANGLE_FAN, 0, 4);
