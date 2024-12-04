@@ -8,6 +8,7 @@ use symphonia::core::meta::{Metadata, MetadataOptions, StandardTagKey};
 use symphonia::core::probe::Hint;
 use std::default::Default;
 use std::{fmt, fs, thread};
+use std::borrow::Cow;
 use std::fmt::Formatter;
 use std::fs::File;
 use std::io::{Cursor, Write};
@@ -15,7 +16,9 @@ use egui::ahash::HashMap;
 use glob::glob;
 use image::imageops::FilterType;
 use image::{ ImageFormat, ImageReader};
-use symphonia::core::audio::{AudioBufferRef, Signal};
+use symphonia::core::audio::{AudioBuffer, AudioBufferRef, Signal};
+use symphonia::core::conv::IntoSample;
+use symphonia::core::sample::{Sample, u24};
 
 // TODO a hashset thingy maybe that will store the images
 // so that I don't have to regenerate the images continuously
@@ -54,7 +57,6 @@ struct TrackMetadata{
     sample_rate:u32,
 
 }
-
 impl fmt::Debug for TrackMetadata{
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         f.debug_struct("TrackMetadata")
@@ -95,9 +97,9 @@ impl AudioConverter {
 
     fn __extract_metadata(&self, input_path : PathBuf) -> Result<TrackMetadata,Error>{
         let mut hint = Hint::new();
-
         if let Some(extension) = input_path.extension() {
             if let Some(extension_str) = extension.to_str(){
+                println!("do I come here");
                 hint.with_extension(extension_str);
             }
         }
@@ -108,15 +110,24 @@ impl AudioConverter {
         let meta_opts : MetadataOptions = Default::default();
         let fmt_opts : FormatOptions = Default::default();
 
-        let probed = symphonia::default::get_probe()
+        let mut probed = symphonia::default::get_probe()
             .format(&hint, mss_src, &fmt_opts, &meta_opts)
             .expect("unsupported format");
 
         let mut format = probed.format;
 
-        let binding = format.metadata();
+        if let Some(metadata_rev) = format.metadata().current() {
+            let binding = format.metadata();
+            self._extract_metadata(binding)
+        }
+        else if let Some(metadata_rev) = probed.metadata.get().as_ref().and_then(|m| m.current()) {
+            let binding = probed.metadata.get().unwrap();
+            self._extract_metadata(binding)
+        }else{
+            Err(Error::Unsupported("no metadata found"))
+        }
 
-        self._extract_metadata(binding)
+
     }
 
     fn _extract_metadata(&self,binding: Metadata<'_>) -> Result<TrackMetadata,Error>{
@@ -235,12 +246,12 @@ impl AudioConverter {
     }
     pub fn convert_file_to_mp3(&self, output_path: PathBuf) -> Result<(),Error>{
 
-        let (pcm_data_left_vec,pcm_data_right_vec,track_metadata) = self.decode_input().unwrap();
+        let (pcm_data,track_metadata) = self.decode_input().unwrap();
 
         // TODO maybe allow to export in more formats
         let mp3_bytes;
         match &self.to_type {
-            AudioFiletype::MP3 =>  mp3_bytes = self.encode_to_mp3(pcm_data_left_vec,pcm_data_right_vec, &track_metadata),
+            AudioFiletype::MP3 =>  mp3_bytes = AudioConverter::encode_to_mp3(pcm_data, &track_metadata),
             _ => panic!("not implemented")
         }
 
@@ -270,7 +281,7 @@ impl AudioConverter {
         Ok(())
     }
 
-    fn decode_input(&self) ->Result<( Vec<i32>,Vec<i32>,TrackMetadata),Error>{
+    fn decode_input(&self) ->Result<( Vec<Vec<f32>>,TrackMetadata),Error>{
         let mut hint = Hint::new();
 
         match self.from_type{
@@ -285,16 +296,27 @@ impl AudioConverter {
         let meta_opts : MetadataOptions = Default::default();
         let fmt_opts : FormatOptions = Default::default();
 
-        let probed = symphonia::default::get_probe()
+        let mut probed = symphonia::default::get_probe()
             .format(&hint, mss_src, &fmt_opts, &meta_opts)
             .expect("unsupported format");
 
         let mut format = probed.format;
 
-        let binding = format.metadata();
 
+        let track_metadata_res;
+        if let Some(metadata_rev) = format.metadata().current() {
+            let binding = format.metadata();
+            track_metadata_res = self._extract_metadata(binding)
+        }
+        else if let Some(metadata_rev) = probed.metadata.get().as_ref().and_then(|m| m.current()) {
+            let binding = probed.metadata.get().unwrap();
+            track_metadata_res = self._extract_metadata(binding)
+        }else{
+            return Err(Error::Unsupported("no metadata found"));
+        }
 
-        let mut track_metadata = self._extract_metadata(binding).unwrap();
+        let mut track_metadata = track_metadata_res.unwrap();
+
 
         ////////////////////////////////////////////////////
 
@@ -320,8 +342,10 @@ impl AudioConverter {
 
         let track_id = track.id;
 
-        let mut pcm_data_left_vec : Vec<i32> = Vec::new();
-        let mut pcm_data_right_vec : Vec<i32> = Vec::new();
+        let mut pcm_data_left_vec : Vec<f32> = Vec::new();
+        let mut pcm_data_right_vec : Vec<f32> = Vec::new();
+        let mut pcm_data: Vec<Vec<f32>> =  vec![Vec::new(); 2];
+
 
         let result = loop{
             let packet = match format.next_packet() {
@@ -344,48 +368,22 @@ impl AudioConverter {
                 Err(err) => break Err(err),
             };
 
-            /*match decoded {
-                AudioBufferRef::U8(_) => println!("It is a U8 variant."),
-                AudioBufferRef::U16(_) => println!("It is a U16 variant."),
-                AudioBufferRef::U24(_) => println!("It is a U24 variant."),
-                AudioBufferRef::U32(_) => println!("It is a U32 variant."),
-                AudioBufferRef::S8(_) => println!("It is a S8 variant."),
-                AudioBufferRef::S16(_) => println!("It is a S16 variant."),
-                AudioBufferRef::S24(_) => println!("It is a S24 variant."),
-                AudioBufferRef::S32(_) => println!("It is a S32 variant."),
-                AudioBufferRef::F32(_) => println!("It is a F32 variant."),
-                AudioBufferRef::F64(_) => println!("It is a F64 variant."),
-            }*/
+
 
             match decoded {
-                AudioBufferRef::S32(buf) => {
+                AudioBufferRef::U8(input) => convert_samples(input, &mut pcm_data),
+                AudioBufferRef::U16(input) => convert_samples(input, &mut pcm_data),
+                AudioBufferRef::U24(input) => convert_samples(input, &mut pcm_data),
+                AudioBufferRef::U32(input) => convert_samples(input, &mut pcm_data),
+                AudioBufferRef::S8(input) => convert_samples(input, &mut pcm_data),
+                AudioBufferRef::S16(input) => convert_samples(input, &mut pcm_data),
+                AudioBufferRef::S24(input) => convert_samples(input, &mut pcm_data),
+                AudioBufferRef::S32(input) => convert_samples(input, &mut pcm_data),
+                AudioBufferRef::F32(input) => convert_samples(input, &mut pcm_data),
+                AudioBufferRef::F64(input) => convert_samples(input, &mut pcm_data),
 
-                    let left_channel: Vec<_> = buf.chan(0).to_vec();
-                    let right_channel: Vec<_> = buf.chan(1).to_vec();
-
-                    let mut pcm_data_left_vec_t = vec![];
-                    let mut pcm_data_right_vec_t = vec![];
-
-                    let handle_left = thread::spawn(move || {
-                        for &sample in &left_channel {
-                            pcm_data_left_vec_t.push(sample);
-                        }
-                        pcm_data_left_vec_t
-                    });
-                    let handle_right= thread::spawn(move || {
-                        for &sample in &right_channel {
-                            pcm_data_right_vec_t.push(sample);
-                        }
-                        pcm_data_right_vec_t
-                    });
-
-                    pcm_data_left_vec.append(&mut handle_left.join().unwrap());
-                    pcm_data_right_vec.append(&mut handle_right.join().unwrap());
-
-
-                }
                 _ => {
-                    // Handle other sample formats.
+                    // Handle other sample formats
                     unimplemented!()
                 }
             }
@@ -396,12 +394,12 @@ impl AudioConverter {
         let _res = self.ignore_end_of_stream_error(result);
 
 
-        Ok((pcm_data_left_vec,pcm_data_right_vec,track_metadata))
+        Ok((pcm_data,track_metadata))
 
 
     }
 
-    fn encode_to_mp3(&self, pcm_left : Vec<i32>,pcm_right : Vec<i32>, track_metadata: &TrackMetadata) -> Vec<u8>{
+    fn encode_to_mp3(pcm_data : Vec<Vec<f32>>, track_metadata: &TrackMetadata) -> Vec<u8>{
         let mut mp3_encoder = Builder::new().expect("Create LAME builder");
         mp3_encoder.set_num_channels(2).expect("set channels");
         mp3_encoder.set_sample_rate(track_metadata.sample_rate).expect("set sample rate");
@@ -424,8 +422,8 @@ impl AudioConverter {
 
         //use actual PCM data
         let input = DualPcm {
-            left: &pcm_left,
-            right: &pcm_right,
+            left: &pcm_data[0],
+            right: &pcm_data[1],
         };
 
         let mut mp3_out_buffer = Vec::new();
@@ -479,9 +477,22 @@ fn append_to_path(p: PathBuf, s: &str) -> PathBuf {
 }
 
 
+fn convert_samples<S>(input: Cow<AudioBuffer<S>>, output: &mut Vec<Vec<f32>>)
+where
+    S: Sample + IntoSample<f32>,
+{
+    for (channel, dest) in output.iter_mut().enumerate() {
+        let src = input.chan(channel);
+        dest.extend(src.iter().map(|&s| s.into_sample()));
+    }
+
+}
+
 
 #[cfg(test)]
 mod tests {
+    use std::path::PathBuf;
+    use crate::app::converter::{AudioConverter, AudioFiletype};
 
     #[test]
 
@@ -494,5 +505,14 @@ mod tests {
         hasher.write(&data);
 
         println!("Hash is {:x}!", hasher.finish());
+    }
+
+    #[test]
+
+    fn test_mp3(){
+        let input_path = PathBuf::from("test_media/test.mp3");
+        let dest_path = PathBuf::from("test_media/");
+        let audio_converter = AudioConverter::new(input_path.clone(), AudioFiletype::MP3);
+        let res = audio_converter.convert_file_to_mp3(dest_path);
     }
 }

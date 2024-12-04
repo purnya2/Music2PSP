@@ -26,10 +26,12 @@ rfd = "0.15.0"
 image = "0.25.5"
 egui_extras = "0.29.1"
 wgpu = "23.0.0"
-symphonia = "0.5.4"
+symphonia = { version = "0.5.4", features = ["all", "opt-simd"] }
+
 mp3lame-encoder = "0.2.0"
 glob = "0.3.1"
 regex = "1.10.2"
+rayon = "1.10.0"
 
 # native:
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
