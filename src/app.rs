@@ -30,8 +30,8 @@ pub struct TemplateApp {
     start_time: Instant,
     xmbwaveshader: Arc<Mutex<XmbWaveShader>>,
     thread_handler: ThreadHandler,
-    t : f32,
-    acc : f32
+    t: f32,
+    acc: f32,
 }
 
 impl TemplateApp {
@@ -62,8 +62,8 @@ impl TemplateApp {
             start_time: Instant::now(),
             xmbwaveshader: Arc::new(Mutex::new(XmbWaveShader::new(gl))),
             thread_handler: ThreadHandler::new(),
-            t : 0.0,
-            acc : 0.5
+            t: 0.0,
+            acc: 0.5,
         }
     }
 }
@@ -71,11 +71,8 @@ impl TemplateApp {
 impl eframe::App for TemplateApp {
     /// Called each time the UI needs repainting, which may be many times per second.
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-
-
         let is_busy = self.thread_handler.is_busy.load(Ordering::Relaxed);
-
-        self.paint_on_window_background(ctx,is_busy);
+        self.paint_on_window_background(ctx, &is_busy);
 
         ctx.request_repaint();
 
@@ -123,16 +120,18 @@ impl eframe::App for TemplateApp {
                 });
 
                 if ui.button("convert folder/s").clicked() {
-                    let dst_ops = self.destination_directory.clone();
-                    match dst_ops {
-                        Some(dir) => {
-                            for folder in &self.folder_directories {
-                                self.thread_handler
-                                    .add_files(collect_files_in_folder(folder));
+                    if !is_busy {
+                        let dst_ops = self.destination_directory.clone();
+                        match dst_ops {
+                            Some(dir) => {
+                                for folder in &self.folder_directories {
+                                    self.thread_handler
+                                        .add_files(collect_files_in_folder(folder));
+                                }
+                                self.thread_handler.execute_threads();
                             }
-                            self.thread_handler.execute_threads();
+                            None => println!("You forgot to put the destination man!"),
                         }
-                        None => println!("You forgot to put the destination man!"),
                     }
                 }
 
@@ -165,20 +164,18 @@ fn lerp(a: f32, b: f32, t: f32) -> f32 {
     a + (b - a) * t
 }
 impl TemplateApp {
-    fn paint_on_window_background(&mut self, ctx: &egui::Context, is_busy: bool) {
+    fn paint_on_window_background(&mut self, ctx: &egui::Context, is_busy: &bool) {
         let screen_rect = ctx.screen_rect();
-        let mut start_time:f32 = 0.0;
-        if is_busy{
-            self.acc = lerp(self.acc,0.25,0.005);
+        let mut start_time: f32 = 0.0;
+        if *is_busy {
+            self.acc = lerp(self.acc, 0.25, 0.005);
+            self.t += self.acc;
+            start_time = self.t;
+        } else {
+            self.acc = lerp(self.acc, 0.01, 0.01);
             self.t += self.acc;
             start_time = self.t;
         }
-        else{
-            self.acc = lerp(self.acc,0.01,0.01);
-            self.t += self.acc;
-            start_time = self.t;
-        }
-
 
         let xmbwaveshader = self.xmbwaveshader.clone();
 
@@ -302,10 +299,10 @@ impl XmbWaveShader {
                     out vec4 out_color;
                     void main() {
                         vec2 uv = gl_FragCoord.xy/1000.0;
-                        vec3 col = vec3(0.3+((uv.x+uv.y)/3.0),0.3+((uv.x+uv.y)/3.0),0.3+((uv.x+uv.y)/3.0));
+                        vec3 col = vec3(0.2+((uv.x+uv.y)/3.0),0.2+((uv.x+uv.y)/3.0),0.2+((uv.x+uv.y)/3.0));
 
                         col+=clamp(wave(uv,1.0,0.4,10.0,4.0,0.1,1.0,0.5),0.0,0.4);
-                        col+=clamp(wave(uv,2.0,0.3,9.0,4.0,0.1,1.0,0.5),0.0,1.0);
+                        col+=clamp(wave(uv,2.0,0.3,9.0,4.0,0.1,1.0,1.0),0.0,0.4);
                         out_color = vec4(col,1.0);
 
                     }
